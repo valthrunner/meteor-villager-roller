@@ -282,7 +282,8 @@ public class VillagerRoller extends Module {
     private long currentProfessionWaitTime;
     private int rollCounter = 0;
     private boolean isCollectingLecterns = false;
-    private boolean movingForward = true;
+    private long collectionStartTime = 0;
+    private Vec3d originalPosition = null;
 
     public VillagerRoller() {
         super(Categories.Misc, "villager-roller", "Rolls trades.");
@@ -299,6 +300,12 @@ public class VillagerRoller extends Module {
         currentState = State.WAITING_FOR_TARGET_BLOCK;
         rollCounter = 0;
         isCollectingLecterns = false;
+        originalPosition = null;
+        
+        // Make sure movement keys are not stuck
+        mc.options.forwardKey.setPressed(false);
+        mc.options.backKey.setPressed(false);
+        
         if (cfSetup.get()) {
             info("Attack block you want to roll");
         }
@@ -780,19 +787,47 @@ public class VillagerRoller extends Module {
         switch (currentState) {
             case ROLLING_BREAKING_BLOCK -> {
                 if (isCollectingLecterns) {
-                    // During collection phase, move back and forth
-                    if (movingForward) {
-                        mc.player.setPosition(mc.player.getX() + 0.1, mc.player.getY(), mc.player.getZ());
-                        movingForward = false;
-                    } else {
-                        mc.player.setPosition(mc.player.getX() - 0.1, mc.player.getY(), mc.player.getZ());
-                        movingForward = true;
+                    long currentTime = System.currentTimeMillis();
+                    
+                    // Phase 1: Store position and start moving forward
+                    if (originalPosition == null) {
+                        originalPosition = mc.player.getPos();
+                        collectionStartTime = currentTime;
+                        // Simulate pressing W to move forward
+                        mc.options.forwardKey.setPressed(true);
+                        return;
                     }
                     
-                    // After a brief period, continue normal operation
-                    if (mc.player.age % 20 == 0) { // Wait ~1 second
+                    // Phase 2: Stop moving forward and wait 0.5 seconds
+                    if (currentTime - collectionStartTime > 300 && currentTime - collectionStartTime <= 800) {
+                        // Stop moving forward, just wait
+                        mc.options.forwardKey.setPressed(false);
+                        return;
+                    }
+                    
+                    // Phase 3: After waiting, start moving back
+                    if (currentTime - collectionStartTime > 800 && currentTime - collectionStartTime <= 1100) {
+                        // Start moving backward
+                        mc.options.backKey.setPressed(true);
+                        return;
+                    }
+                    
+                    // Phase 4: After moving back, finish collecting
+                    if (currentTime - collectionStartTime > 1100) {
+                        // Stop all movement
+                        mc.options.forwardKey.setPressed(false);
+                        mc.options.backKey.setPressed(false);
+                        
+                        // Make sure player is back at original position
+                        if (originalPosition != null) {
+                            mc.player.setPosition(originalPosition.x, originalPosition.y, originalPosition.z);
+                        }
+                        
+                        // Reset collection state
                         isCollectingLecterns = false;
+                        originalPosition = null;
                         rollCounter = 0;
+                        info("Lectern collection complete");
                     }
                     return;
                 }
@@ -803,7 +838,7 @@ public class VillagerRoller extends Module {
                         rollCounter++;
                         
                         // Check if we reached the collection interval
-                        if (rollCounter >= lecturnPickupInterval.get()) {
+                        if (rollCounter >= lecternPickupInterval.get()) {
                             isCollectingLecterns = true;
                             info("Collecting dropped lecterns...");
                             return;
