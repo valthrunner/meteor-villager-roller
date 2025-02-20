@@ -243,7 +243,23 @@ public class VillagerRoller extends Module {
         .build()
     );
 
+    private final Setting<Boolean> pickupLecterns = sgGeneral.add(new BoolSetting.Builder()
+    .name("pickup-lecterns")
+    .description("Periodically picks up lecterns to avoid depleting inventory")
+    .defaultValue(true)
+    .build()
+    );
 
+    private final Setting<Integer> lecturnPickupInterval = sgGeneral.add(new IntSetting.Builder()
+    .name("lectern-pickup-interval")
+    .description("How many rolls before collecting lecterns")
+    .defaultValue(10)
+    .min(1)
+    .max(20)
+    .sliderRange(1, 20)
+    .visible(pickupLecterns::get)
+    .build()
+    );
 
     private enum State {
         DISABLED,
@@ -264,6 +280,9 @@ public class VillagerRoller extends Module {
     private final List<RollingEnchantment> searchingEnchants = new ArrayList<>();
     private long failedToPlacePrevMsg = System.currentTimeMillis();
     private long currentProfessionWaitTime;
+    private int rollCounter = 0;
+    private boolean isCollectingLecterns = false;
+    private boolean movingForward = true;
 
     public VillagerRoller() {
         super(Categories.Misc, "villager-roller", "Rolls trades.");
@@ -278,6 +297,8 @@ public class VillagerRoller extends Module {
             }
         }
         currentState = State.WAITING_FOR_TARGET_BLOCK;
+        rollCounter = 0;
+        isCollectingLecterns = false;
         if (cfSetup.get()) {
             info("Attack block you want to roll");
         }
@@ -758,7 +779,37 @@ public class VillagerRoller extends Module {
     private void onTick(TickEvent.Pre event) {
         switch (currentState) {
             case ROLLING_BREAKING_BLOCK -> {
+                if (isCollectingLecterns) {
+                    // During collection phase, move back and forth
+                    if (movingForward) {
+                        mc.player.setPosition(mc.player.getX() + 0.1, mc.player.getY(), mc.player.getZ());
+                        movingForward = false;
+                    } else {
+                        mc.player.setPosition(mc.player.getX() - 0.1, mc.player.getY(), mc.player.getZ());
+                        movingForward = true;
+                    }
+                    
+                    // After a brief period, continue normal operation
+                    if (mc.player.age % 20 == 0) { // Wait ~1 second
+                        isCollectingLecterns = false;
+                        rollCounter = 0;
+                    }
+                    return;
+                }
+            
                 if (mc.world.getBlockState(rollingBlockPos) == Blocks.AIR.getDefaultState()) {
+                    // Count successful breaks if tracking enabled
+                    if (pickupLecterns.get()) {
+                        rollCounter++;
+                        
+                        // Check if we reached the collection interval
+                        if (rollCounter >= lecturnPickupInterval.get()) {
+                            isCollectingLecterns = true;
+                            info("Collecting dropped lecterns...");
+                            return;
+                        }
+                    }
+                    
                     // info("Block is broken, waiting for villager to clean profession...");
                     currentState = State.ROLLING_WAITING_FOR_VILLAGER_PROFESSION_CLEAR;
                 } else if (!BlockUtils.breakBlock(rollingBlockPos, true)) {
