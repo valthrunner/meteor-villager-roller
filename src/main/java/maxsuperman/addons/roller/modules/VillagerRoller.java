@@ -729,6 +729,10 @@ public class VillagerRoller extends Module {
                         mc.getSoundManager().play(PositionedSoundInstance.master(sound.get().get(0),
                             soundPitch.get().floatValue(), soundVolume.get().floatValue()));
                     }
+                    
+                    info("§a§l✓ SUCCESS! §r§aFound enchantment §b" + enchantName + " " + enchantLevel + 
+                        "§a for §6" + offer.getOriginalFirstBuyItem().getCount() + " emeralds§a!");
+                    
                     if (disconnectIfFound.get()) {
                         MutableText text = Text.literal(String.format("[VillagerRoller] Found enchant %s for %d emeralds and automatically disconnected.", enchantName, offer.getOriginalFirstBuyItem().getCount()));
                         mc.player.networkHandler.onDisconnect(new DisconnectS2CPacket(text));
