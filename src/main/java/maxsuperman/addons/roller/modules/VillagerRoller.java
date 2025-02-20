@@ -250,7 +250,7 @@ public class VillagerRoller extends Module {
     .build()
     );
 
-    private final Setting<Integer> lecturnPickupInterval = sgGeneral.add(new IntSetting.Builder()
+    private final Setting<Integer> lecternPickupInterval = sgGeneral.add(new IntSetting.Builder()
     .name("lectern-pickup-interval")
     .description("How many rolls before collecting lecterns")
     .defaultValue(10)
