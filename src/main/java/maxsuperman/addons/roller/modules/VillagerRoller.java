@@ -284,6 +284,7 @@ public class VillagerRoller extends Module {
     private boolean isCollectingLecterns = false;
     private long collectionStartTime = 0;
     private Vec3d originalPosition = null;
+    private boolean hasMoved = false;
 
     public VillagerRoller() {
         super(Categories.Misc, "villager-roller", "Rolls trades.");
@@ -301,10 +302,7 @@ public class VillagerRoller extends Module {
         rollCounter = 0;
         isCollectingLecterns = false;
         originalPosition = null;
-        
-        // Make sure movement keys are not stuck
-        mc.options.forwardKey.setPressed(false);
-        mc.options.backKey.setPressed(false);
+        hasMoved = false;
         
         if (cfSetup.get()) {
             info("Attack block you want to roll");
@@ -789,43 +787,43 @@ public class VillagerRoller extends Module {
                 if (isCollectingLecterns) {
                     long currentTime = System.currentTimeMillis();
                     
-                    // Phase 1: Store position and start moving forward
+                    // Phase 1: Store position and move exactly one block forward
                     if (originalPosition == null) {
                         originalPosition = mc.player.getPos();
                         collectionStartTime = currentTime;
-                        // Simulate pressing W to move forward
-                        mc.options.forwardKey.setPressed(true);
+                        hasMoved = false;
                         return;
                     }
                     
-                    // Phase 2: Stop moving forward and wait 0.5 seconds
+                    // Move exactly one block forward
+                    if (!hasMoved && currentTime - collectionStartTime <= 300) {
+                        // Precise movement - exactly one block forward
+                        double dx = Math.round(Math.sin(-Math.toRadians(mc.player.getYaw())));
+                        double dz = Math.round(Math.cos(Math.toRadians(mc.player.getYaw())));
+                        
+                        mc.player.setPosition(originalPosition.x + dx, originalPosition.y, originalPosition.z + dz);
+                        hasMoved = true;
+                        return;
+                    }
+                    
+                    // Phase 2: Wait 0.5 seconds after moving
                     if (currentTime - collectionStartTime > 300 && currentTime - collectionStartTime <= 800) {
-                        // Stop moving forward, just wait
-                        mc.options.forwardKey.setPressed(false);
+                        // Just wait in position
                         return;
                     }
                     
-                    // Phase 3: After waiting, start moving back
+                    // Phase 3: Return precisely to original position
                     if (currentTime - collectionStartTime > 800 && currentTime - collectionStartTime <= 1100) {
-                        // Start moving backward
-                        mc.options.backKey.setPressed(true);
+                        mc.player.setPosition(originalPosition.x, originalPosition.y, originalPosition.z);
                         return;
                     }
                     
-                    // Phase 4: After moving back, finish collecting
+                    // Phase 4: After returning, finish collecting
                     if (currentTime - collectionStartTime > 1100) {
-                        // Stop all movement
-                        mc.options.forwardKey.setPressed(false);
-                        mc.options.backKey.setPressed(false);
-                        
-                        // Make sure player is back at original position
-                        if (originalPosition != null) {
-                            mc.player.setPosition(originalPosition.x, originalPosition.y, originalPosition.z);
-                        }
-                        
                         // Reset collection state
                         isCollectingLecterns = false;
                         originalPosition = null;
+                        hasMoved = false;
                         rollCounter = 0;
                         info("Lectern collection complete");
                     }
